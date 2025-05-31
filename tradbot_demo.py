@@ -1,61 +1,53 @@
-
 import streamlit as st
+import yfinance as yf
 import pandas as pd
 import matplotlib.pyplot as plt
-import requests
-from bs4 import BeautifulSoup
-from datetime import datetime, timedelta
-import numpy as np
-
-# -------- FUNCIONES -----------
-def obtener_precio_ecopetrol_bvc():
-    url = "https://www.investing.com/equities/ecopetrol"
-    headers = { "User-Agent": "Mozilla/5.0" }
-    try:
-        response = requests.get(url, headers=headers)
-        soup = BeautifulSoup(response.text, 'html.parser')
-        precio = soup.find("span", {"data-test": "instrument-price-last"}).text.strip()
-        variacion = soup.find("span", {"data-test": "instrument-price-change-percent"}).text.strip()
-        return precio, variacion
-    except Exception as e:
-        return "Error", str(e)
-
-def simular_datos_historicos(dias=60, precio_inicial=2500):
-    fechas = [datetime.now() - timedelta(days=i) for i in range(dias)][::-1]
-    precios = [precio_inicial + np.random.normal(0, 20) for _ in range(dias)]
-    df = pd.DataFrame({'Fecha': fechas, 'Precio': precios})
-    df['SMA_10'] = df['Precio'].rolling(window=10).mean()
-    df['EMA_10'] = df['Precio'].ewm(span=10, adjust=False).mean()
-    return df
-
-# -------- APP STREAMLIT -----------
-st.set_page_config(page_title="Tradbot - Demo ECOPETROL", layout="wide")
-
-# Logo
 from PIL import Image
-logo = Image.open("assets/tradbot_logo.png")
-st.image(logo, width=220)
+import os
 
-st.title("📊 Tradbot - Seguimiento ECOPETROL:BVC")
+# Configuración de la página
+st.set_page_config(page_title="Tradbot DEMO", layout="wide")
 
-# Mostrar datos actuales
-st.subheader("📌 Precio actual en Bolsa de Valores de Colombia")
-precio, variacion = obtener_precio_ecopetrol_bvc()
-st.metric(label="ECOPETROL:BVC", value=precio, delta=variacion)
+# Cargar el logo
+logo_path = "assets/tradbot_logo.png"
+if os.path.exists(logo_path):
+    logo = Image.open(logo_path)
+    st.image(logo, width=200)
 
-# Simulación de datos históricos
-st.subheader("📈 Evolución histórica simulada y análisis técnico")
+st.title("📈 Tradbot DEMO – ECOPETROL (ADR) en tiempo real")
 
-df = simular_datos_historicos()
+# Obtener datos de Yahoo Finance
+ticker = "EC"
+st.subheader(f"Datos históricos de: {ticker} (Ecopetrol NYSE)")
+
+data = yf.Ticker(ticker)
+hist = data.history(period="6mo")
+
+# Calcular indicadores
+hist["SMA_20"] = hist["Close"].rolling(window=20).mean()
+hist["EMA_20"] = hist["Close"].ewm(span=20, adjust=False).mean()
+
+# Mostrar métricas actuales
+precio_actual = hist["Close"][-1]
+variacion = hist["Close"][-1] - hist["Close"][-2]
+porcentaje = (variacion / hist["Close"][-2]) * 100
+
+col1, col2, col3 = st.columns(3)
+col1.metric("Precio actual", f"${precio_actual:.2f}")
+col2.metric("Variación diaria", f"${variacion:.2f}")
+col3.metric("Cambio %", f"{porcentaje:.2f}%")
+
+# Mostrar gráfico
+st.subheader("📊 Gráfico con SMA y EMA (20 días)")
 fig, ax = plt.subplots(figsize=(10, 5))
-ax.plot(df['Fecha'], df['Precio'], label="Precio", linewidth=2)
-ax.plot(df['Fecha'], df['SMA_10'], label="SMA 10 días", linestyle='--')
-ax.plot(df['Fecha'], df['EMA_10'], label="EMA 10 días", linestyle='-.')
-ax.set_title("Simulación histórica ECOPETROL:BVC")
-ax.set_ylabel("COP")
-ax.grid(True)
+ax.plot(hist.index, hist["Close"], label="Precio Cierre", linewidth=2)
+ax.plot(hist.index, hist["SMA_20"], label="SMA 20", linestyle="--")
+ax.plot(hist.index, hist["EMA_20"], label="EMA 20", linestyle=":")
+ax.set_title("ECOPETROL (ADR) - Histórico con Indicadores")
+ax.set_xlabel("Fecha")
+ax.set_ylabel("Precio USD")
 ax.legend()
+ax.grid(True)
 st.pyplot(fig)
 
-# Footer
-st.caption("Versión Demo Tradbot | Datos locales de ECOPETROL:BVC simulados y reales | Powered by Streamlit")
+st.caption("Fuente: Yahoo Finance | Tradbot DEMO")
